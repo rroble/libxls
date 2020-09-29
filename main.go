@@ -44,10 +44,70 @@ func main() {
 		panic(err)
 	}
 	defer C.xls_close(wb)
+	// wb
+	// .sheets.count
+	// .sheets.sheet[i].name
 
 	info := C.xls_summaryInfo(wb)
 	defer C.xls_close_summaryInfo(info)
-	fmt.Printf("%#v\n", summary(info))
+	// fmt.Printf("%#v\n", summary(info))
+
+	// fmt.Println("Sheets", wb.sheets.count)
+
+	for i := 0; ; i++ {
+		sheet := C.xls_getWorkSheet(wb, C.int(i))
+		if sheet == nil {
+			break
+		}
+		err := C.xls_parseWorkSheet(sheet)
+		if err != C.LIBXLS_OK {
+			panic(err)
+		}
+		fmt.Println("Sheet ", i /*, wb.sheets.sheet[i].name*/)
+		lastRow := int(sheet.rows.lastrow)
+		for j := 0; j <= lastRow; j++ {
+			cellRow := (C.WORD)(j)
+			fmt.Print("Row ", cellRow+1, ": ")
+
+			var cellCol C.WORD
+			for cellCol = 0; cellCol <= sheet.rows.lastcol; cellCol++ {
+				cell := C.xls_cell(sheet, cellRow, cellCol)
+				if cell == nil || cell.isHidden == 1 {
+					continue
+				}
+				if cell.rowspan > 1 {
+					// set next row/s cell value
+				}
+
+				if cell.id == C.XLS_RECORD_RK || cell.id == C.XLS_RECORD_MULRK || cell.id == C.XLS_RECORD_NUMBER {
+					fmt.Print("", cell.d, ", ")
+				} else if cell.id == C.XLS_RECORD_FORMULA || cell.id == C.XLS_RECORD_FORMULA_ALT {
+					if cell.l == 0 {
+						fmt.Print("", cell.d, ", ")
+					} else {
+						str := C.GoString(cell.str)
+						if str == "bool" {
+							if cell.d == 0 {
+								fmt.Print("false, ")
+							} else {
+								fmt.Print("true, ")
+							}
+						} else if str == "error" {
+							fmt.Print("*error*", cell.d, ", ")
+						} else {
+							fmt.Print("", C.GoString(cell.str), ", ")
+						}
+					}
+				} else if cell.str != nil {
+					fmt.Print("", C.GoString(cell.str), ", ")
+				} else {
+					fmt.Print(", ")
+				}
+			}
+			fmt.Println("")
+		}
+		C.xls_close_WS(sheet)
+	}
 }
 
 func summary(info *C.xlsSummaryInfo) summaryInfo {
@@ -65,4 +125,5 @@ func summary(info *C.xlsSummaryInfo) summaryInfo {
 	}
 }
 
-// LD_LIBRARY_PATH=.libs:$LD_LIBRARY_PATH go run main.go
+// macro? autoconf-archive
+// ./configure --disable-shared --enable-static
